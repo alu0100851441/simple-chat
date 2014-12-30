@@ -1,27 +1,24 @@
-require 'sinatra' 
-require 'sinatra/reloader' if development?
-#set :port, 3000
-#set :environment, :production
+# coding: utf-8
+require 'sinatra'
+set server: 'thin'
+set connections: []
 
-chat = ['welcome..']
-
-get('/') { erb :index }
-
-get '/send' do
-  return [404, {}, "Not an ajax request"] unless request.xhr?
-  chat << "#{request.ip} : #{params['text']}"
-  nil
+get '/' do
+  erb(:login) 
 end
 
-get '/update' do
-  return [404, {}, "Not an ajax request"] unless request.xhr?
-  @updates = chat[params['last'].to_i..-1] || []
+post '/chat' do
+  erb :chat, locals: { user: params[:user].gsub(/\W/, '') }
+end
 
-  @last = chat.size
-  erb <<-'HTML', :layout => false
-      <% @updates.each do |phrase| %>
-        <%= phrase %> <br />
-      <% end %>
-      <span data-last="<%= @last %>"></span>
-  HTML
+get '/stream', provides: 'text/event-stream' do
+  stream :keep_open do |out|
+    settings.connections << out
+    out.callback { settings.connections.delete(out) }
+  end
+end
+
+post '/' do
+  settings.connections.each { |out| out << "data: #{params[:msg]}\n\n" }
+  204 # response without entity body
 end
